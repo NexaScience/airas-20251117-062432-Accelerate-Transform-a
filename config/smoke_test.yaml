@@ -1,0 +1,88 @@
+variations:
+  # ---------------------------------------------------------------------------
+  # Baseline (standard Dropout) — smoke-test size
+  # ---------------------------------------------------------------------------
+  - run_id: baseline-zeor2-smoke
+    description: "Baseline with standard Dropout (smoke test)"
+    seed: 42
+    dataset:
+      name: Lots-of-LoRAs/task1288_glue_mrpc_paraphrasing
+      seq_length: 64
+      batch_size: 8
+      num_classes: 2
+    model:
+      type: hf
+      name: allenai/longformer-base-4096
+    training:
+      epochs: 1
+      learning_rate: 5e-5
+      use_pmdrop: false
+      fp16: false
+      use_flash_attn: false
+      use_tempo: false
+
+  # ---------------------------------------------------------------------------
+  # PM-Drop (packed masks) — smoke-test size
+  # ---------------------------------------------------------------------------
+  - run_id: pm-drop-zeor2-smoke
+    description: "PM-Drop enabled (smoke test)"
+    seed: 42
+    dataset:
+      name: Lots-of-LoRAs/task1288_glue_mrpc_paraphrasing
+      seq_length: 64
+      batch_size: 8
+      num_classes: 2
+    model:
+      type: hf
+      name: allenai/longformer-base-4096
+    training:
+      epochs: 1
+      learning_rate: 5e-5
+      use_pmdrop: true
+      fp16: false
+      use_flash_attn: false
+      use_tempo: false
+
+  # ---------------------------------------------------------------------------
+  # PM-Drop + FlashAttention stub — smoke-test size
+  # ---------------------------------------------------------------------------
+  - run_id: pm-drop-zeor2-flash-smoke
+    description: "PM-Drop + FlashAttention (stub) (smoke test)"
+    seed: 42
+    dataset:
+      name: Lots-of-LoRAs/task1288_glue_mrpc_paraphrasing
+      seq_length: 64
+      batch_size: 8
+      num_classes: 2
+    model:
+      type: hf
+      name: allenai/longformer-base-4096
+    training:
+      epochs: 1
+      learning_rate: 5e-5
+      use_pmdrop: true
+      fp16: false
+      use_flash_attn: true
+      use_tempo: false
+
+  # ---------------------------------------------------------------------------
+  # PM-Drop + FlashAttention + Tempo stub — smoke-test size
+  # ---------------------------------------------------------------------------
+  - run_id: pm-drop-zeor2-flash-tempo-smoke
+    description: "PM-Drop + FlashAttention + Tempo (stub) (smoke test)"
+    seed: 42
+    dataset:
+      name: Lots-of-LoRAs/task1288_glue_mrpc_paraphrasing
+      seq_length: 64
+      batch_size: 8
+      num_classes: 2
+    model:
+      type: hf
+      name: allenai/longformer-base-4096
+    training:
+      epochs: 1
+      learning_rate: 5e-5
+      use_pmdrop: true
+      fp16: false
+      use_flash_attn: true
+      use_tempo: true
