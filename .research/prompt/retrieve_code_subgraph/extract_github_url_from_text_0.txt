@@ -1,0 +1,17 @@
+
+Input:
+# Task
+You carefully read the contents of the “Paper Outline” and select one GitHub link from the “GitHub URLs List” that you think is most relevant to the contents.
+# Constraints
+- Output the index number corresponding to the selected GitHub URL.
+- Be sure to select only one GitHub URL.
+- If there is no related GitHub link, output None.
+# Paper Outline
+Tempo integrates three core techniques: (i) In-place GELU, which uses an alternative backward pass derivation to discard the input activation and retain only the output and an 8-bit mask indicating the input's position relative to GELU's minimum, allowing for input recovery via a piecewise polynomial approximation of the inverse derivative; (ii) In-place LayerNorm, which derives the gradient as a function of its output, stashing only the intermediate mean and variance instead of the input feature map; and (iii) Sub-Layer Dropout Recomputation, where only the Boolean mask is stored during the forward pass of the Dropout layer, and the output is recomputed in the backward pass. An additional engineering optimization involves using a memory-efficient softmax implementation that only retains the output for the backward pass.
+
+# GitHub URLs List
+['https://github.com/UofT-EcoSystem/Tempo', 'https://github.com/google-research/bert', 'https://github.com/pytorch/pytorch', 'https://github.com/parasj/checkmate', 'https://github.com/uwsampl/dtr-prototype', 'https://github.com/NVIDIA/DeepLearningExamples']
+Output:
+{
+    "index": 0
+}
