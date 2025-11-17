@@ -1,0 +1,205 @@
+
+Input:
+
+# Instructions
+You are a scientific research consistency evaluator. Your task is to evaluate a single experiment to determine:
+1. Whether it is consistent with the proposed method and experimental strategy
+2. Whether the results support the main claims (e.g., proposed method outperforms baseline)
+3. Whether it should be included in the research paper
+
+## Scope Constraints
+- Focus ONLY on evaluating consistency between the proposed method and experimental results
+- Do not suggest infrastructure changes (Docker, lock files, etc.)
+- Do not recommend development/testing procedures (unit tests, synthetic graphs, etc.)
+- Do not suggest implementation details or code improvements
+- Do not recommend data release or reproducibility practices
+- Do not require or suggest experiments on actual hardware (e.g., real edge devices, physical deployment)
+- Evaluate only: method-result alignment, experimental design adequacy, result interpretation validity, and statistical rigor within computational/simulation contexts
+
+Based on your analysis, provide:
+1. `consistency_feedback` (str): Detailed feedback explaining the consistency evaluation and suggestions for improvement
+2. `consistency_score` (int): A score from 1-10 indicating the quality and consistency of the experimental design and results
+
+## Evaluation Criteria
+
+### consistency_feedback (str)
+Provide specific feedback focused on **scientific consistency evaluation** and **clearly categorize the source of any issues**:
+
+**Problem Categorization - Identify which area(s) need improvement:**
+
+1. **Experimental Strategy Issues**:
+   - Evaluate if the experimental strategy is fundamentally sound for validating the proposed method
+   - Assess whether the experimental setup provides adequate scope and rigor
+   - Identify if the chosen metrics, baselines, or evaluation approach are appropriate
+
+2. **Implementation Issues**:
+   - Assess whether the generated code correctly implements the described experimental strategy
+   - Identify gaps between what the strategy specifies and what the code actually does
+   - Point out if the implementation fails to follow the experimental design
+
+3. **Result Interpretation Issues**:
+   - Assess alignment between claimed method and actual experimental results
+   - Identify gaps between theoretical claims and empirical evidence
+   - Point out contradictions between expected and observed outcomes
+   - **Critical**: Check if the proposed method demonstrates improvement over baseline
+
+**For each identified issue, clearly specify:**
+- Which category the problem falls into
+- What specific aspect needs improvement
+- How it affects the paper inclusion decision
+
+### consistency_score (int)
+Provide a numerical score (1-10) based on execution status and result quality:
+
+- **1-3: Critical Failure / Not Executed**
+  - The experiment failed to run (e.g., code crash, setup error)
+  - Produced no meaningful output
+  - Implementation was fundamentally flawed, invalidating the results
+  - The primary claims cannot be evaluated
+
+- **4-5: Executed, but Poor or Negative Results**
+  - The experiment ran correctly, but the results are negative
+  - The proposed method performs worse than or shows no meaningful improvement over the baseline
+  - The results contradict or fail to support the primary claims
+
+- **6-7: Executed, Positive but Not Conclusive Results**
+  - The experiment ran correctly and shows clear positive improvement over the baseline
+  - Results align with the primary claims
+  - Evidence is weakened by minor issues in scientific rigor (e.g., single-seed runs, lack of statistical tests, limited scope)
+  - The results are suggestive but not definitive
+
+- **8-10: Executed, Conclusive and High-Impact Results**
+  - The experiment ran correctly and provides strong, reliable evidence supporting the primary claims
+  - Results are clearly superior to the baseline
+  - Experimental design demonstrates high scientific rigor (e.g., multiple runs, fair comparisons, statistical validation)
+  - Score of 9-10 indicates particularly impactful and insightful magnitude of improvement
+
+## Context
+
+**Proposed Method:** {
+    "Open Problems": "Tempo removes most large activations but still keeps all binary Dropout / Attention masks as 1-byte (uint8) tensors.  For long-sequence Transformers these masks alone can occupy hundreds of MB and become the new memory bottleneck.  The key open problem is: how can we store those strictly-binary tensors with 1-bit precision while keeping back-prop fast and fully compatible with PyTorch autograd?",
+    "Methods": "PackedMask Dropout (PM-Drop)\n1. Replace every Dropout (and future Attention, Head & MLP binary gates) by a custom autograd function that bit-packs the Boolean mask.\n   • Forward: generate the standard Boolean mask M (torch.bool), reshape to (N, .., 8) and compress 8 bits into a single uint8 using bitwise   operations (torch.bitwise_or & left-shift).  Store the packed mask P and dropout scale 1⁄(1-p).\n   • Backward: on first use, unpack P back to the Boolean mask with bitwise_and & right-shift.  Multiply the unpacked mask with upstream gradient as usual.\n2. Because only the mask tensor is changed, the objective function and model weights stay untouched—training dynamics are identical.\nTheoretical motivation: masks carry exactly 1 bit of information; storing them in 8 bits is an 8× waste.  Since mask generation and application are element-wise, the extra (un)packing cost is O(#elements) and completely hidden by GPU memory-bandwidth savings for practical batch sizes.",
+    "Experimental Setup": "Model: Hugging-face TinyBERT (4-layer) fine-tuned on the MRPC subset of GLUE (to keep the run <5 min on a single GPU).\nBaseline: standard Dropout.\nProposed: replace every torch.nn.Dropout by PM-Drop (one-liner import).\nMetrics:\n• GPU peak memory (torch.cuda.max_memory_allocated).\n• Training throughput (sequences/s).\n• Validation accuracy/F1 to confirm identical learning behaviour.\nExpectation: ~5-10 % lower overall memory (≈8× lower mask memory) with <1 % throughput change.",
+    "Experimental Code": "import torch, torch.nn as nn\n\nclass PackedDropoutFn(torch.autograd.Function):\n    @staticmethod\n    def forward(ctx, x, p, training):\n        if not training or p == 0.0:\n            ctx.save_for_backward(None)\n            return x\n        keep_prob = 1 - p\n        mask = torch.rand_like(x) < keep_prob  # bool\n        # pack every 8 bits into one byte\n        flat = mask.flatten()\n        pad = (-flat.numel()) % 8  # pad to multiple of 8\n        if pad:\n            flat = torch.cat([flat, flat.new_zeros(pad)])\n        flat = flat.view(-1, 8)\n        byte = sum((flat[:, i].byte() << i) for i in range(8))\n        packed = byte.contiguous()\n        ctx.save_for_backward(packed)\n        ctx.shape = x.shape\n        ctx.p = p\n        return x * mask.div(keep_prob)\n\n    @staticmethod\n    def backward(ctx, grad_out):\n        packed, = ctx.saved_tensors\n        if packed is None:\n            return grad_out, None, None\n        # unpack\n        byte = packed.view(-1, 1)\n        bits = (byte >> torch.arange(8, device=byte.device)) & 1\n        mask = bits.flatten()[:grad_out.numel()].view(ctx.shape).bool()\n        grad_in = grad_out * mask.div(1 - ctx.p)\n        return grad_in, None, None\n\nclass PackedDropout(nn.Module):\n    def __init__(self, p=0.1):\n        super().__init__(); self.p = p\n    def forward(self, x):\n        return PackedDropoutFn.apply(x, self.p, self.training)\n\n# --- quick sanity test ---\nif __name__ == \"__main__\":\n    x = torch.randn(2, 3, 4, device='cuda')\n    pd = PackedDropout(0.2).cuda()\n    y = pd(x).sum()\n    y.backward()\n    print('peak mem:', torch.cuda.max_memory_allocated()/1e6, 'MB')",
+    "Expected Result": "1. Memory: Mask storage reduced by ≈8×.  For TinyBERT with sequence length 512 and batch 64 this cuts total GPU memory by ~6 %.  For BERT-Large the saving rises to 400–600 MB enabling +10-15 % larger batch size.\n2. Speed: (Un)packing adds ≤0.3 ms per step; throughput change within ±1 %.\n3. Accuracy/F1 on MRPC remains statistically identical (same stochastic graph).",
+    "Expected Conclusion": "PM-Drop fixes an overlooked inefficiency in state-of-the-art memory-optimized training: binary masks are stored with 8× too many bits.  Bit-packing is a one-line, framework-friendly change that frees hundreds of MB on typical Transformer workloads, converts directly into larger batch/sequence sizes, and composes seamlessly with existing techniques such as Tempo or activation checkpointing.  The idea is simple, yet delivers measurable acceleration without touching model quality or requiring special hardware."
+}
+
+**Overall Experimental Strategy:** Overall Experimental Strategy for Validating Packed-Mask Dropout (PM-Drop)
+
+1. Core Hypotheses to Validate
+   a. Memory Efficiency: PM-Drop reduces mask-related memory by ≈8× and total GPU memory by ≥5 % on small models and ≥10 % on large/long-sequence models.
+   b. Computational Overhead: (Un)packing cost is amortised—training throughput changes by ≤±2 % and GPU utilisation is unaffected.
+   c. Training Fidelity: PM-Drop is a strict functional drop-in; learning curves, final accuracy/F1, and gradient statistics are indistinguishable from the standard implementation.
+   d. Generalisation & Robustness: Benefits hold across model sizes (Tiny → Large), domains (NLP, vision, multimodal), sequence lengths, precisions (FP32/BF16/FP16), and training regimes (single-GPU, DDP, ZeRO-1/2, activation checkpointing).
+   e. Compatibility: PM-Drop composes transparently with other memory/time-saving techniques (Tempo, FlashAttention, LoRA, etc.).
+
+2. Experimental Axes & Required Comparisons
+   • Baseline: Torch nn.Dropout / attention masks in uint8.
+   • State-of-the-art Memory Toolkits: Tempo + Checkpointing; DeepSpeed-ZeRO-2; xFormers / FlashAttention variants.
+   • Ablations: (i) PM-Drop forward only (unpack every step) vs cached-unpack; (ii) different bit-packing widths (4-bit, 2-bit) for stress-testing; (iii) turning packing off for attention masks only or MLP masks only.
+   • Scaling Experiments: Multiple models (TinyBERT, BERT-Base, BERT-Large, GPT-J, Longformer, ViT-B/16) and sequence/batch sweeps to map memory/throughput curves.
+
+3. Validation Angles & Metrics
+   Quantitative:
+     - Peak/average GPU memory (torch.cuda.max_memory_*).
+     - Max feasible batch or sequence length on a fixed 80 GB A100.
+     - Step-time, tokens-per-second, TFLOPs utilisation from nvprof/Nsight.
+     - End-of-training task metrics (accuracy/F1/BLEU/perplexity depending on task).
+     - Gradient norm, loss curve overlay, and cosine similarity of parameter updates (ensures identical optimisation dynamics).
+   Qualitative:
+     - Convergence plots across seeds.
+     - Case-study of an OOM-with-baseline vs fits-with-PM-Drop scenario.
+     - Code diff (LoC) and integration friction survey.
+   Computational Cost:
+     - Micro-benchmark the forward/backward kernel time for dropout layers in isolation.
+     - PCIe dram-read/write counters to show bandwidth trade-off.
+
+4. Multi-Perspective Demonstrations
+   1) Micro Level: Layer-wise synthetic benchmarks isolating dropout to confirm 8× mask compression and ≤0.3 ms overhead.
+   2) Model Level: Fine-tune & pre-train workloads showing memory-to-throughput/accuracy Pareto curves.
+   3) System Level: Full training stack with ZeRO-2 + activation-checkpointing demonstrating either (a) 10–15 % larger batch or (b) 1.1–1.3× longer context length on the same GPU.
+   4) Edge Case Stress Tests: Extremely long-sequence (8k–32k tokens) Transformers where mask memory dominates.
+   5) Robustness: 5 random seeds × 3 datasets; report mean±std.
+
+5. Success Criteria
+   • Memory: ≥7.5× compression of Boolean masks; ≥5 % end-to-end memory saving on small models; ≥10 % on large/long-sequence.
+   • Performance: Training throughput delta within ±2 % of baseline; forward/backward wall-time per step not statistically slower (t-test p>0.05).
+   • Accuracy: Task metric difference ≤0.2 σ of baseline run-to-run variance; no divergence observed over 3 seeds.
+   • Gradient Check: Autograd gradcheck passes (finite-diff error <1e-5) on representative layers.
+   • Scalability: Linear (or better) memory saving trend with sequence length; unlock at least one configuration that baseline cannot fit.
+   • Compatibility: No additional code changes needed outside one-line import; framework features (torch.compile, DDP, AMP) operate unmodified.
+
+6. Practical Considerations & Environment Alignment
+   • All experiments confined to one or four A100-80GB nodes; batch/sequence sweeps capped to avoid exceeding 80 GB per GPU.
+   • Use PyTorch 2.1 + CUDA 12.2; enable torch.autograd.profiler & Nsight Systems for low-overhead tracing.
+   • Ensure cudnn_deterministic=True and seed control for fairness in convergence/accuracy comparison.
+   • Log with Weights & Biases; publish scripts so any result can be replicated on a single A100 within 2 hours (micro/model-level) or 24 hours (system-level).
+
+This unified strategy guarantees that every subsequent experiment—whether a tiny micro-benchmark or a full-scale long-sequence pre-training run—collects a consistent, multi-angle evidence bundle, enabling a conclusive assessment of PM-Drop’s memory, speed, correctness, and practical impact.
+
+## Current Experiment to Evaluate
+
+**Experiment ID:** exp-1-main-perf
+
+**Experiment Description:** Objective / hypothesis: Quantitatively verify that Packed-Mask Dropout (PM-Drop) compresses dropout / attention masks by ≥7.5×, yields ≥5 % total GPU-memory reduction on small models and ≥10 % on large models, keeps throughput within ±2 %, and preserves task accuracy (Δ≤0.2 σ).  
+
+Models: TinyBERT-4L-312H, BERT-Base, BERT-Large (HuggingFace versions).  
+Datasets & tasks:  
+• GLUE MRPC (TinyBERT) – Accuracy / F1  
+• GLUE SST-2 (BERT-Base) – Accuracy  
+• WikiText-103 fine-tuning (BERT-Large) – Perplexity  
+
+Pre-processing: standard WordPiece tokenisation (uncased), max sequence lengths = {128, 512, 1 024}.  
+Data splits: official train / validation; test only for MRPC & SST-2 (via GLUE server).  
+Seeds & repetitions: 5 seeds × 3 models × 4 variations = 60 runs; early-stopping on best-val metric with patience = 3.  
+
+Evaluation metrics:  
+Primary – peak GPU memory (torch.cuda.max_memory_allocated) and task metric (F1 / Accuracy / PPL).  
+Secondary – step time, tokens-per-second, TFLOPs utilisation (Nsight), gradient-norm similarity (cosine w.r.t. baseline).  
+
+Comparisons:  
+• baseline-std-drop – stock torch.nn.Dropout  
+• pm-drop – proposed 1-bit packed mask, cached unpack  
+• pm-drop-no-cache – unpacks every forward call (tests compute overhead)  
+• pm-drop-4bit – packs 2 masks into 1 byte (stress-test reduced compression)  
+
+Hyper-parameter sensitivity: grid over learning-rate {3e-5, 5e-5, 1e-4}. Report mean±std and plot memory vs throughput vs accuracy Pareto.  
+
+Robustness: inject 5 % random bit-flip noise into packed tensor before unpack (offline only) and show negligible accuracy change (<0.5 %).  
+
+Efficiency analysis: log FLOPs with ptflops, wall-clock train/infer time (time.perf_counter), and GPU memory-bandwidth counters.  
+
+Example core snippet (identical across runs, only flag differs):  
+```python
+from pm_drop import PackedDropout, set_mode  # our repo
+if args.variant == 'baseline-std-drop':
+    replace_dropout(model, torch.nn.Dropout)
+elif args.variant == 'pm-drop':
+    replace_dropout(model, PackedDropout, cache_unpacked=True)
+elif args.variant == 'pm-drop-no-cache':
+    replace_dropout(model, PackedDropout, cache_unpacked=False)
+elif args.variant == 'pm-drop-4bit':
+    set_mode(bits_per_mask=4)
+    replace_dropout(model, PackedDropout, cache_unpacked=True)
+```
+
+Hardware counters and logs pushed to W&B for reproducibility. All 60 runs fit within 48 GPU-hours on one A100-80GB.
+
+**Run Variations:** ['baseline-std-drop', 'pm-drop', 'pm-drop-no-cache', 'pm-drop-4bit']
+
+**Generated Code:** {"evaluate_py": "", "full_experiment_yaml": "", "main_py": "", "model_py": "", "preprocess_py": "", "pyproject_toml": "", "smoke_test_yaml": "", "train_py": ""}
+
+**Experimental Results:**
+
+- Result: 
+- Error: 
+- Images: []
+
+
+**Primary Goal**: Evaluate whether this specific experiment is consistent, supports the main claims, and should be included in the research paper.
+Output:
+{
+    "consistency_feedback": "The experiment description (exp-1-main-perf) is well aligned with the overall validation strategy: it compares PM-Drop against standard Dropout across three model scales, measures exactly the stated metrics (memory, throughput, task quality), sweeps multiple seeds, and even contains ablation variants.  From a design perspective this would directly test all key hypotheses.\n\nHowever, no executable artefacts are provided – every code field is empty (\"evaluate_py\", \"main_py\", etc.) and the results section contains neither numbers nor plots (\"Result:\" and \"Error:\" are blank).  Consequently:\n\n1. Experimental Strategy Issues – none.  The planned strategy is solid and would be worth including once executed.\n\n2. Implementation Issues – critical.  The implementation is missing; the experiment never ran.  Therefore peak-memory, throughput, and accuracy evidence are absent.  Without concrete figures, compression claims (≥7.5× mask, ≥5–10 % total memory, ±2 % speed, ≈0 accuracy delta) are unsubstantiated.\n\n3. Result Interpretation Issues – critical.  Because no results exist, the manuscript cannot claim that PM-Drop outperforms the baseline or even functions correctly.\n\nEffect on inclusion: In its present state, exp-1-main-perf should not be included in the paper.  The authors must supply actual run logs, summary tables (mean ± std over 5 seeds), and preferably statistical tests before the experiment can support the paper’s core claims.",
+    "consistency_score": 2
+}
