@@ -2,5 +2,13 @@
   "research_topic": "Accelerate Transformer training",
   "queries": [
     "transformer training acceleration"
+  ],
+  "research_study_list": [
+    {
+      "title": "Tempo: Accelerating Transformer-Based Model Training through Memory Footprint Reduction"
+    },
+    {
+      "title": "Accelerating Transformer Pre-training with 2:4 Sparsity"
+    }
   ]
 }
