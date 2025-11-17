@@ -17,7 +17,8 @@
           "Gennady Pekhimenko"
         ],
         "published_date": "2022-10-19T01:59:37Z",
-        "pdf_url": "https://arxiv.org/pdf/2210.10246v2.pdf"
+        "pdf_url": "https://arxiv.org/pdf/2210.10246v2.pdf",
+        "github_url": "https://github.com/UofT-EcoSystem/Tempo"
       },
       "llm_extracted_info": {
         "main_contributions": "The paper proposes Tempo, a novel approach to efficiently manage accelerator memory for training Transformer-based models, addressing the limitation of batch size due to activation memory footprint. Tempo introduces drop-in replacements for GELU, LayerNorm, and Attention layers, significantly reducing memory usage and boosting training throughput. It demonstrates up to 2x higher batch sizes and 16% higher training throughput for BERTLARGE pre-training and 19% and 26% speedups for GPT2 and RoBERTa respectively over state-of-the-art baselines. This work is the first to specifically optimize memory footprint for Transformer-based layers that translates to an actual increase in throughput.",
