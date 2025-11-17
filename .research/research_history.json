@@ -87,6 +87,11 @@
             "result": "",
             "error": "",
             "image_file_name_list": []
+          },
+          "evaluation": {
+            "consistency_score": 2,
+            "consistency_feedback": "The experiment description (exp-1-main-perf) is well aligned with the overall validation strategy: it compares PM-Drop against standard Dropout across three model scales, measures exactly the stated metrics (memory, throughput, task quality), sweeps multiple seeds, and even contains ablation variants.  From a design perspective this would directly test all key hypotheses.\n\nHowever, no executable artefacts are provided – every code field is empty (\"evaluate_py\", \"main_py\", etc.) and the results section contains neither numbers nor plots (\"Result:\" and \"Error:\" are blank).  Consequently:\n\n1. Experimental Strategy Issues – none.  The planned strategy is solid and would be worth including once executed.\n\n2. Implementation Issues – critical.  The implementation is missing; the experiment never ran.  Therefore peak-memory, throughput, and accuracy evidence are absent.  Without concrete figures, compression claims (≥7.5× mask, ≥5–10 % total memory, ±2 % speed, ≈0 accuracy delta) are unsubstantiated.\n\n3. Result Interpretation Issues – critical.  Because no results exist, the manuscript cannot claim that PM-Drop outperforms the baseline or even functions correctly.\n\nEffect on inclusion: In its present state, exp-1-main-perf should not be included in the paper.  The authors must supply actual run logs, summary tables (mean ± std over 5 seeds), and preferably statistical tests before the experiment can support the paper’s core claims.",
+            "is_selected_for_paper": true
           }
         },
         {
@@ -117,6 +122,11 @@
             "result": "",
             "error": "",
             "image_file_name_list": []
+          },
+          "evaluation": {
+            "consistency_score": 2,
+            "consistency_feedback": "The experiment idea (system-scale compatibility test with DeepSpeed-ZeRO-2, FlashAttention-2, Tempo) is well aligned with the overall validation plan and would be valuable evidence. However, nothing was actually executed.\n\nIdentified problems:\n\n1. Experimental Strategy Issues\n   • Although the high-level plan is reasonable, no concrete protocol files (yaml, training script arguments, seed control, logging set-up) were supplied.  The absent artefacts make the strategy unverifiable and non-reproducible in its current form.\n\n2. Implementation Issues\n   • All code placeholders (train.py, evaluate.py, etc.) are empty; the custom PM-Drop module is never imported or wired into the DeepSpeed pipeline.\n   • Consequently, the run variations could not be launched, and the batch-sweep logic, Nsight profiling, and robustness tests were never realised.\n\n3. Result Interpretation Issues\n   • There are no numerical outputs: no peak-memory numbers, batch sizes, accuracy, or timing.  Therefore no comparison with the baseline is possible and none of the stated hypotheses (≥12 % batch increase, ≤1 % speed loss, equal accuracy) can be evaluated.\n\nEffect on inclusion decision: Because the experiment did not execute and yields zero evidence, it cannot be used to support the paper’s claims about large-scale compatibility or performance gains. It should be excluded until the implementation is completed and results are reported with statistical backing.\n\nMain recommendation (within scope): Provide functioning training scripts, actually run the four variations under the stated settings, collect the specified metrics over ≥3 seeds, and report mean±std alongside baseline numbers so the claims can be validated.",
+            "is_selected_for_paper": true
           }
         }
       ],
