@@ -1,0 +1,72 @@
+variations:
+  - run_id: baseline-std-drop
+    description: "Baseline with standard Dropout (smoke test)"
+    seed: 42
+    dataset:
+      name: Lots-of-LoRAs/task1288_glue_mrpc_paraphrasing
+      seq_length: 64
+      batch_size: 8
+      num_classes: 2
+    model:
+      name: huawei-noah/TinyBERT_General_4L_312D
+    training:
+      epochs: 1
+      learning_rate: 5e-5
+      use_pmdrop: false
+      pmdrop_bits: 1
+      pmdrop_cache: false
+      fp16: false
+
+  - run_id: pm-drop
+    description: "PM-Drop with 1-bit packing and cached mask (smoke test)"
+    seed: 42
+    dataset:
+      name: Lots-of-LoRAs/task1288_glue_mrpc_paraphrasing
+      seq_length: 64
+      batch_size: 8
+      num_classes: 2
+    model:
+      name: huawei-noah/TinyBERT_General_4L_312D
+    training:
+      epochs: 1
+      learning_rate: 5e-5
+      use_pmdrop: true
+      pmdrop_bits: 1
+      pmdrop_cache: true
+      fp16: false
+
+  - run_id: pm-drop-no-cache
+    description: "PM-Drop without cache (smoke test)"
+    seed: 42
+    dataset:
+      name: Lots-of-LoRAs/task1288_glue_mrpc_paraphrasing
+      seq_length: 64
+      batch_size: 8
+      num_classes: 2
+    model:
+      name: huawei-noah/TinyBERT_General_4L_312D
+    training:
+      epochs: 1
+      learning_rate: 5e-5
+      use_pmdrop: true
+      pmdrop_bits: 1
+      pmdrop_cache: false
+      fp16: false
+
+  - run_id: pm-drop-4bit
+    description: "PM-Drop with 4-bit packing (smoke test)"
+    seed: 42
+    dataset:
+      name: Lots-of-LoRAs/task1288_glue_mrpc_paraphrasing
+      seq_length: 64
+      batch_size: 8
+      num_classes: 2
+    model:
+      name: huawei-noah/TinyBERT_General_4L_312D
+    training:
+      epochs: 1
+      learning_rate: 5e-5
+      use_pmdrop: true
+      pmdrop_bits: 4
+      pmdrop_cache: true
+      fp16: false
